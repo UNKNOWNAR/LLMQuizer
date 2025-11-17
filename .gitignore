@@ -33,3 +33,4 @@ browser_downloads/
 
 # Specific to this project
 codebase.txt
+.env

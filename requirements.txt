@@ -6,3 +6,8 @@ playwright
 pdfplumber
 Pillow
 google.generativeai
+python-dotenv
+# Testing
+pytest
+pytest-asyncio
+respx

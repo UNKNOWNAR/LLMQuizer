@@ -98,6 +98,31 @@ curl -X POST http://127.0.0.1:8000/quiz \
 }'
 ```
 
+## Testing
+
+This project includes a comprehensive end-to-end test suite that simulates the entire quiz-solving process. It uses `pytest` and a mock server (`mock_server.py`) that serves a chain of mock quizzes to the agent.
+
+### 1. Install Testing Dependencies
+The testing requirements are included in `requirements.txt` but if you need to install them separately:
+```bash
+pip install pytest pytest-asyncio httpx
+```
+
+### 2. Run the Test Suite
+To run all tests, including the full end-to-end quiz chain simulation, run the following command from the project root:
+
+```bash
+pytest -v
+```
+
+The test suite will:
+1. Start the main application server.
+2. Start the mock quiz server.
+3. Send an initial request to the agent to start the quiz chain.
+4. Assert that the agent correctly navigates every step of the chain (including text, CSV, image, and retry logic).
+5. Test error handling for 404 and 422 HTTP errors.
+6. Test edge cases like broken data links and LLM failures.
+
 ### Docker Deployment
 The included `Dockerfile` is optimized for deployment on cloud platforms like Google Cloud Run.
 
