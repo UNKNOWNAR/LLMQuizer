@@ -21,5 +21,5 @@ COPY . .
 
 # 6. Cloud Run listens on $PORT, default 8080
 # Uvicorn will automatically use $PORT if available.
-ENV PORT 8080
+ENV PORT=8080
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
