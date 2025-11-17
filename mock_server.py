@@ -35,6 +35,13 @@ def get_local_image():
     """Serves a local PNG image."""
     return FileResponse("PNG_Test.png", media_type="image/png")
 
+import os
+
+# Determine the base URL based on the environment
+# In a Docker container, the host can be reached at `host.docker.internal`
+IS_DOCKER_TESTING = os.getenv("DOCKER_TESTING") == "true"
+BASE_URL = "http://host.docker.internal:8001" if IS_DOCKER_TESTING else "http://localhost:8001"
+
 # --- 2. FAKE SUBMISSION ENDPOINT ---
 # Your agent will submit its answer here
 @app.post("/mock-submit/start")
@@ -45,7 +52,7 @@ async def mock_submit_start(request: Request):
     print_submission(data, "START")
     return JSONResponse(
         status_code=200,
-        content={"correct": True, "url": "http://localhost:8001/mock-quiz/csv", "reason": "Initial task correct."}
+        content={"correct": True, "url": f"{BASE_URL}/mock-quiz/csv", "reason": "Initial task correct."}
     )
 
 @app.post("/mock-submit/csv")
@@ -56,7 +63,7 @@ async def mock_submit_csv(request: Request):
     print_submission(data, "CSV")
     return JSONResponse(
         status_code=200,
-        content={"correct": True, "url": "http://localhost:8001/mock-quiz/pdf", "reason": "CSV task correct."}
+        content={"correct": True, "url": f"{BASE_URL}/mock-quiz/pdf", "reason": "CSV task correct."}
     )
 
 @app.post("/mock-submit/pdf")
@@ -67,7 +74,7 @@ async def mock_submit_pdf(request: Request):
     print_submission(data, "PDF")
     return JSONResponse(
         status_code=200,
-        content={"correct": True, "url": "http://localhost:8001/mock-quiz/image", "reason": "PDF task correct."}
+        content={"correct": True, "url": f"{BASE_URL}/mock-quiz/image", "reason": "PDF task correct."}
     )
 
 @app.post("/mock-submit/image")
@@ -78,7 +85,7 @@ async def mock_submit_image(request: Request):
     print_submission(data, "IMAGE")
     return JSONResponse(
         status_code=200,
-        content={"correct": True, "url": "http://localhost:8001/mock-quiz/retry-test", "reason": "Image task correct."}
+        content={"correct": True, "url": f"{BASE_URL}/mock-quiz/retry-test", "reason": "Image task correct."}
     )
 
 @app.post("/mock-submit/fail-with-reason")
@@ -89,14 +96,14 @@ async def mock_submit_fail(request: Request):
     print_submission(data, "RETRY_ATTEMPT")
     
     # Count how many times this URL has been submitted to.
-    retry_url = "http://localhost:8001/mock-quiz/retry-test"
+    retry_url = f"{BASE_URL}/mock-quiz/retry-test"
     submission_count = sum(1 for item in _submission_log if item.get("url") == retry_url)
 
     # Fail on the first attempt, succeed on the second.
     if submission_count > 1:
         return JSONResponse(
             status_code=200,
-            content={"correct": True, "url": "http://localhost:8001/mock-quiz/stop-test", "reason": "Retry successful!"}
+            content={"correct": True, "url": f"{BASE_URL}/mock-quiz/stop-test", "reason": "Retry successful!"}
         )
     
     return JSONResponse(
@@ -176,11 +183,11 @@ def get_test_html():
 @app.get("/mock-quiz/csv", response_class=HTMLResponse)
 def get_csv_quiz():
     # This is the "hidden" text that will be rendered
-    question_html = """
+    question_html = f"""
     <h2>Q1: CSV Task (Local File)</h2>
-    <p>Download the file at <strong>http://localhost:8001/files/local_cities.csv</strong></p>
+    <p>Download the file at <strong>{BASE_URL}/files/local_cities.csv</strong></p>
     <p>What is the sum of the "Population" column?</p>
-    <p>Post your answer to <strong>http://localhost:8001/mock-submit/csv</strong>.</p>
+    <p>Post your answer to <strong>{BASE_URL}/mock-submit/csv</strong>.</p>
     """
     # Encode it to Base64 to mimic the real test
     b64_content = base64.b64encode(question_html.encode()).decode()
@@ -188,43 +195,43 @@ def get_csv_quiz():
 
 @app.get("/mock-quiz/pdf", response_class=HTMLResponse)
 def get_pdf_quiz():
-    question_html = """
+    question_html = f"""
     <h2>Q2: TXT Task (Local File)</h2>
-    <p>Download the file at <strong>http://localhost:8001/files/simple.txt</strong></p>
+    <p>Download the file at <strong>{BASE_URL}/files/simple.txt</strong></p>
     <p>What is the secret word in the file?</p>
-    <p>Post your answer to <strong>http://localhost:8001/mock-submit/pdf</strong>.</p>
+    <p>Post your answer to <strong>{BASE_URL}/mock-submit/pdf</strong>.</p>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)
 
 @app.get("/mock-quiz/image", response_class=HTMLResponse)
 def get_image_quiz():
-    question_html = """
+    question_html = f"""
     <h2>Q3: Image Task (Local File)</h2>
-    <p>Analyze the image at <strong>http://localhost:8001/files/PNG_Test.png</strong></p>
+    <p>Analyze the image at <strong>{BASE_URL}/files/PNG_Test.png</strong></p>
     <p>What is the main subject of this image? (This will test Gemini)</p>
-    <p>Post your answer to <strong>http://localhost:8001/mock-submit/image</strong>.</p>
+    <p>Post your answer to <strong>{BASE_URL}/mock-submit/image</strong>.</p>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)
 
 @app.get("/mock-quiz/retry-test", response_class=HTMLResponse)
 def get_retry_quiz():
-    question_html = """
+    question_html = f"""
     <h2>Q4: Retry Task</h2>
     <p>This is a simple text question.</p>
     <p>What is the capital of France?</p>
-    <p>Post your answer to <strong>http://localhost:8001/mock-submit/fail-with-reason</strong>.</p>
+    <p>Post your answer to <strong>{BASE_URL}/mock-submit/fail-with-reason</strong>.</p>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)
 
 @app.get("/mock-quiz/stop-test", response_class=HTMLResponse)
 def get_stop_quiz():
-    question_html = """
+    question_html = f"""
     <h2>Q5: Stop Task</h2>
     <p>This quiz will stop the chain. What is 2+2?</p>
-    <p>Post your answer to <strong>http://localhost:8001/mock-submit/stop</strong>.</p>
+    <p>Post your answer to <strong>{BASE_URL}/mock-submit/stop</strong>.</p>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)

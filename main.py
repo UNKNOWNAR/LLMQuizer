@@ -41,18 +41,23 @@ class QuizRequest(BaseModel):
 # --- 1. The Scraper (Hands) ---
 async def scrape_page_content(url: str):
     """Uses Playwright to visit the URL, run JS, and scrape all text."""
+    print("--- scrape_page_content: Starting ---")
     async with async_playwright() as p:
         browser = None
         try:
+            print("--- scrape_page_content: Launching browser ---")
             browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
             )
             page = await context.new_page()
+            print(f"--- scrape_page_content: Navigating to {url} ---")
             await page.goto(url, timeout=30000, wait_until="networkidle")
+            print("--- scrape_page_content: Evaluating page content ---")
             content = await page.evaluate("document.body.innerText")
             if not content:
                 content = await page.content()  # Fallback
+            print("--- scrape_page_content: Finished successfully ---")
             return content
         except Exception as e:
             print(f"Playwright scrape error: {e}")
@@ -267,65 +272,73 @@ import time
 
 # --- 4. The Main Router / Background Task ---
 async def process_quiz(request: QuizRequest, start_time: float = None, retry_count: int = 0, feedback: str = None):
-    MAX_RETRIES = 2 # Allow up to 2 retries for a single quiz
+    try:
+        print("--- process_quiz: Task starting ---")
+        MAX_RETRIES = 2 # Allow up to 2 retries for a single quiz
 
-    if start_time is None:
-        start_time = time.time()
+        if start_time is None:
+            start_time = time.time()
 
-    # Check for timeout at the beginning of each processing cycle
-    if (time.time() - start_time) > 290: # 4 minutes 50 seconds, for a 5-minute limit
-        print(f"Timeout reached for quiz chain starting at {request.url}. Stopping.")
-        return
+        # Check for timeout at the beginning of each processing cycle
+        if (time.time() - start_time) > 290: # 4 minutes 50 seconds, for a 5-minute limit
+            print(f"Timeout reached for quiz chain starting at {request.url}. Stopping.")
+            return
 
-    print(f"Processing quiz: {request.url} (Attempt: {retry_count + 1})")
-    
-    # 1. Scrape
-    scraped_text = await scrape_page_content(request.url)
-    if "Error:" in scraped_text:
-        await submit_answer(
-            "https://tds-llm-analysis.s-anand.net/submit", scraped_text, request.url
-        )
-        return
-
-    # 2. Find Submit URL
-    submit_url = extract_submit_url(scraped_text)
-    if not submit_url:
-        print(f"Error: Could not find submit URL for quiz: {request.url}. Stopping.")
-        return
-
-    # 3. Get Answer from Brain (Hybrid)
-    answer = await get_answer_from_ai(scraped_text, feedback=feedback)
-
-    if answer is None:
-        print(f"Error: AI failed to produce a valid answer for quiz: {request.url}. Submitting error message.")
-        answer = "Error: AI could not determine the answer." # Provide a default error message
-        # We still attempt to submit this error message, so the quiz server gets a response.
-
-    print(f"Final Answer from AI: {answer}")
-
-    # 4. Submit
-    submit_result = await submit_answer(submit_url, answer, request.url)
-    
-    # 5. Handle Submission Result and Recurse/Retry
-    if "url" in submit_result and submit_result["url"]:
-        # Always prioritize moving to a new URL if provided
-        print(f"New URL provided. Moving to next quiz: {submit_result['url']}")
-        next_request = QuizRequest(
-            email=request.email, secret=request.secret, url=submit_result["url"]
-        )
-        # Reset retry count and feedback for the new quiz
-        await process_quiz(next_request, start_time=start_time)
-    elif not submit_result.get("correct") and retry_count < MAX_RETRIES:
-        # If incorrect and no new URL, and retries remaining, try again
-        print(f"Answer incorrect. Retrying quiz: {request.url}")
+        print(f"Processing quiz: {request.url} (Attempt: {retry_count + 1})")
         
-        # Prepare feedback for the next attempt
-        new_feedback = submit_result.get("reason") or "Your previous answer was incorrect. Please re-evaluate and try again."
+        # 1. Scrape
+        scraped_text = await scrape_page_content(request.url)
+        if "Error:" in scraped_text:
+            await submit_answer(
+                "https://tds-llm-analysis.s-anand.net/submit", scraped_text, request.url
+            )
+            return
+
+        # 2. Find Submit URL
+        submit_url = extract_submit_url(scraped_text)
+        if not submit_url:
+            print(f"Error: Could not find submit URL for quiz: {request.url}. Stopping.")
+            return
+
+        # 3. Get Answer from Brain (Hybrid)
+        answer = await get_answer_from_ai(scraped_text, feedback=feedback)
+
+        if answer is None:
+            print(f"Error: AI failed to produce a valid answer for quiz: {request.url}. Submitting error message.")
+            answer = "Error: AI could not determine the answer." # Provide a default error message
+            # We still attempt to submit this error message, so the quiz server gets a response.
+
+        print(f"Final Answer from AI: {answer}")
+
+        # 4. Submit
+        submit_result = await submit_answer(submit_url, answer, request.url)
         
-        await process_quiz(request, start_time=start_time, retry_count=retry_count + 1, feedback=new_feedback)
-    else:
-        # Quiz chain finished (correct with no new URL, or failed after retries)
-        print(f"Quiz chain finished or failed. Reason: {submit_result.get('reason')}")
+        # 5. Handle Submission Result and Recurse/Retry
+        if "url" in submit_result and submit_result["url"]:
+            # Always prioritize moving to a new URL if provided
+            print(f"New URL provided. Moving to next quiz: {submit_result['url']}")
+            next_request = QuizRequest(
+                email=request.email, secret=request.secret, url=submit_result["url"]
+            )
+            # Reset retry count and feedback for the new quiz
+            await process_quiz(next_request, start_time=start_time)
+        elif not submit_result.get("correct") and retry_count < MAX_RETRIES:
+            # If incorrect and no new URL, and retries remaining, try again
+            print(f"Answer incorrect. Retrying quiz: {request.url}")
+            
+            # Prepare feedback for the next attempt
+            new_feedback = submit_result.get("reason") or "Your previous answer was incorrect. Please re-evaluate and try again."
+            
+            await process_quiz(request, start_time=start_time, retry_count=retry_count + 1, feedback=new_feedback)
+        else:
+            # Quiz chain finished (correct with no new URL, or failed after retries)
+            print(f"Quiz chain finished or failed. Reason: {submit_result.get('reason')}")
+        print("--- process_quiz: Task finished ---")
+    except Exception as e:
+        print(f"--- CRITICAL ERROR IN process_quiz ---")
+        print(f"Exception: {e}")
+        import traceback
+        print(traceback.format_exc())
 
 
 # --- API Endpoints ---
@@ -336,11 +349,13 @@ def home():
 
 @app.post("/quiz")
 async def receive_task(request: QuizRequest, background_tasks: BackgroundTasks):
+    print("--- receive_task: Endpoint hit ---")
     if request.secret != MY_SECRET:
         raise HTTPException(status_code=403, detail="Unauthorized: Invalid secret key")
 
-    print(f"Task received for {request.url}, starting background agent.")
+    print(f"--- receive_task: Task received for {request.url}, starting background agent. ---")
     background_tasks.add_task(process_quiz, request)
+    print("--- receive_task: Background task added. ---")
 
     return {"message": "Agent started in background"}
 

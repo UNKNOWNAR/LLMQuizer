@@ -29,7 +29,6 @@ Thumbs.db
 browser_downloads/
 
 # Docker
-.dockerignore
 
 # Specific to this project
 codebase.txt

@@ -14,9 +14,7 @@ RUN apt-get update && apt-get install -y \
 # 4. Copy and install Python requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-# Note: `playwright install` is NOT needed, as the base image already has browsers.
-
-# 5. Copy the application code (Note: COPY . . copies everything)
+COPY main.py .
 COPY . .
 
 # 6. Cloud Run listens on $PORT, default 8080
