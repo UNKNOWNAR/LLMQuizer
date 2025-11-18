@@ -1,25 +1,51 @@
-# Git
-.git
-.gitignore
-
-# Python
+# Python artifacts
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-venv/
 .venv/
+venv/
+env/
 
-# Test files and cache
-.pytest_cache/
+# Git
+.git
+.gitignore
+
+# Tests & local scripts (do not copy into production image)
+tests/
+test*.py
+test_*.py
 test_main.py
-test.html
+test_container.py
+pytest.ini
+.pytest_cache/
 mock_server.py
-PNG_Test.png
+send_request.py
+test.html
+codebase.txt
+requirements-dev.txt
 
-# Environment
+# Local dev / env
 .env
+.env.* 
+.env.local
+.env.test
 
-# OS generated files
+# IDE / OS
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
+
+# Build artifacts
+*.log
+*.tmp
+*.bak
+
+# Local data (if you do not want to include dummy data in image)
+Dummy_CSV__sales_.csv
+dummy_doc.pdf
+dummy_notes.txt
+dummy_table.png
+dummy_table.jpg
+PNG_Test.png

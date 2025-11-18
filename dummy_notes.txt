@@ -1,0 +1,13 @@
+Report: Random Measurements
+
+This text file contains a small table of measurements (for use in quizzes).
+Note: The 'value' field appears in the table below.
+
+id	label	value
+101	alpha	12
+102	beta	7
+103	gamma	3
+104	delta	18
+105	epsilon	5
+
+Question hint: What is the sum of the "value" column?
