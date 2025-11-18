@@ -9,7 +9,7 @@ import httpx
 
 payload = {
     "email": "your-email-id",
-    "secret": "my-secret-key",
+    "secret": "my-secret-value",
     "url": "https://en.wikipedia.org/wiki/Artificial_intelligence"
 }
 

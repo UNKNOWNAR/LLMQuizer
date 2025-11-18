@@ -2,8 +2,9 @@ fastapi
 uvicorn[standard]
 groq
 httpx
-playwright
+playwright==1.55.0
 pdfplumber
 Pillow
 google.generativeai
 python-dotenv
+pandas

@@ -1,34 +1,36 @@
 import pytest
-import pytest_asyncio
+import pytest_asyncio as asyncio_fixture
 import httpx
 import asyncio
 import subprocess
 import sys
 import os
 from time import sleep
+from unittest.mock import patch, AsyncMock
 
 # This test file is designed to run against a running Docker container.
 # It assumes the main application is accessible at http://localhost:8000.
 
 # --- Fixtures ---
 
-@pytest.fixture(scope="session")
-def mock_server():
-    """Fixture to run the mock_server.py in a separate process."""
-    # Ensure we use the python from the correct venv if possible
-    python_executable = sys.executable
+# The mock_server is now run in a separate Docker container on the 'quiz-net' network.
+# @pytest.fixture(scope="session")
+# def mock_server():
+#     """Fixture to run the mock_server.py in a separate process."""
+#     # Ensure we use the python from the correct venv if possible
+#     python_executable = sys.executable
     
-    # Set DOCKER_TESTING=true so the mock server uses host.docker.internal
-    env = os.environ.copy()
-    env["DOCKER_TESTING"] = "true"
+#     # Set DOCKER_TESTING=true so the mock server uses host.docker.internal
+#     env = os.environ.copy()
+#     env["DOCKER_TESTING"] = "true"
     
-    process = subprocess.Popen([python_executable, "mock_server.py"], env=env)
-    sleep(2)  # Give the server a moment to start
-    yield "http://localhost:8001"
-    process.terminate()
-    process.wait()
+#     process = subprocess.Popen([python_executable, "mock_server.py"], env=env)
+#     sleep(2)  # Give the server a moment to start
+#     yield "http://localhost:8001"
+#     process.terminate()
+#     process.wait()
 
-@pytest_asyncio.fixture
+@asyncio_fixture.fixture
 async def client():
     """Async client that points to the running Docker container."""
     # The main_app_server fixture is intentionally omitted.
@@ -59,14 +61,15 @@ async def test_invalid_secret(client: httpx.AsyncClient):
     assert response.status_code == 403
     assert response.json() == {"detail": "Unauthorized: Invalid secret key"}
 
-@pytest_asyncio.fixture(autouse=True)
-async def clear_mock_server_log(mock_server):
+@asyncio_fixture.fixture(autouse=True)
+async def clear_mock_server_log():
     """Fixture to clear the mock server's submission log before each test."""
+    # The mock server is now a Docker container, accessible by its name on the network.
     async with httpx.AsyncClient() as client:
-        await client.get(f"{mock_server}/mock-submit/clear")
+        await client.get("http://host.docker.internal:8001/mock-submit/clear")
 
 @pytest.mark.asyncio
-async def test_full_quiz_chain_on_container(client: httpx.AsyncClient, mock_server):
+async def test_full_quiz_chain_on_container(client: httpx.AsyncClient):
     """
     Tests the full end-to-end flow of the quiz chain on the container.
     """
@@ -75,7 +78,7 @@ async def test_full_quiz_chain_on_container(client: httpx.AsyncClient, mock_serv
     my_email = os.getenv("MY_EMAIL", "test@example.com")
     my_secret = os.getenv("MY_SECRET", "my-secret-value")
 
-    # Use host.docker.internal for the container to reach the host
+    # Use the container name for the mock server
     initial_quiz_url = "http://host.docker.internal:8001/"
     
     payload = {
@@ -94,7 +97,8 @@ async def test_full_quiz_chain_on_container(client: httpx.AsyncClient, mock_serv
     submission_log = []
     for i in range(max_polls):
         try:
-            log_response = await httpx.AsyncClient().get(f"{mock_server}/mock-submit/log")
+            # Poll the mock server container directly
+            log_response = await httpx.AsyncClient().get("http://host.docker.internal:8001/mock-submit/log")
             submission_log = log_response.json()
             if len(submission_log) >= 7:
                 break
@@ -110,12 +114,12 @@ async def test_full_quiz_chain_on_container(client: httpx.AsyncClient, mock_serv
     assert len(submission_log) >= 7, "Expected at least 7 submissions for the full chain"
     
     submitted_urls = [item.get("url") for item in submission_log]
-    assert f"{mock_server}/" in submitted_urls
-    assert f"{mock_server}/mock-quiz/csv" in submitted_urls
-    assert f"{mock_server}/mock-quiz/pdf" in submitted_urls
-    assert f"{mock_server}/mock-quiz/image" in submitted_urls
-    assert submitted_urls.count(f"{mock_server}/mock-quiz/retry-test") == 2
-    assert f"{mock_server}/mock-quiz/stop-test" in submitted_urls
+    assert f"http://localhost:8001/" in submitted_urls
+    assert f"http://localhost:8001/mock-quiz/csv" in submitted_urls
+    assert f"http://localhost:8001/mock-quiz/pdf" in submitted_urls
+    assert f"http://localhost:8001/mock-quiz/image" in submitted_urls
+    assert submitted_urls.count(f"http://localhost:8001/mock-quiz/retry-test") == 2
+    assert f"http://localhost:8001/mock-quiz/stop-test" in submitted_urls
     
     # Check a few answers for correctness
     assert submission_log[0]["answer"] == "start"

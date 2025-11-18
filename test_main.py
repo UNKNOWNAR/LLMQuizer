@@ -31,14 +31,23 @@ def main_app_server():
     python_executable = sys.executable
     
     # Create a copy of the current environment and set MY_SECRET for the subprocess
-    env = os.environ.copy()
-    env["MY_SECRET"] = "test-secret" # Set a consistent secret for testing
+    env = {"MY_SECRET": "my-secret-value", "PYTHONUNBUFFERED": "1"} # Start with a clean environment
     
-    process = subprocess.Popen([python_executable, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"], env=env)
-    sleep(5)  # Give the server a moment to start
-    yield "http://localhost:8000"
-    process.terminate()
-    process.wait()
+    import tempfile
+    import os
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        secret_file_path = os.path.join(tmpdir, "my_secret.txt")
+        with open(secret_file_path, "w") as f:
+            f.write("my-secret-value")
+
+        env["MY_SECRET_FILE_PATH"] = secret_file_path
+        
+        process = subprocess.Popen([python_executable, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"], env=env)
+        sleep(5)  # Give the server a moment to start
+        yield "http://localhost:8000"
+        process.terminate()
+        process.wait()
 
 @pytest_asyncio.fixture
 async def client(main_app_server):
