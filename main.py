@@ -178,7 +178,7 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
                 break
 
             page_text = resp.text
-            b64_match = re.search(r'atob(["\\]\[A-Za-z0-9+/=]+["\\]\])', page_text)
+            b64_match = re.search(r'atob(["\\][A-Za-z0-9+/=]+["\\]])', page_text)
             page_inner = base64.b64decode(b64_match.group(1)).decode(errors="ignore") if b64_match else page_text
 
             # --- URL EXTRACTION ---
@@ -274,7 +274,7 @@ async def answer_csv_sum(client, url):
         for row in lines[1:]:
             cols = row.split(',')
             if len(cols) > idx:
-                val_str = re.sub(r"[^0-9.\-]", "", cols[idx])
+                val_str = re.sub(r"[^0-9.\- ]", "", cols[idx])
                 if val_str:
                     try:
                         total += float(val_str)
@@ -290,9 +290,13 @@ async def answer_txt_secret(client, url):
         logger.info(f"Processing TXT/PDF: {url}")
         resp = await client.get(url)
         # Look for a word in quotes, common for secrets
-        m = re.search(r"the secret word is ['\"]([A-Za-z0-9\-]+)['\"]", resp.text, re.IGNORECASE)
+        m = re.search(r"the secret word is ['"]([A-Za-z0-9\-]+)['"]", resp.text, re.IGNORECASE)
         if m:
             return m.group(1)
         
         # Fallback for any quoted word
-        m2 = re.search(r
+        m2 = re.search(r["']([A-Za-z0-9\-]+)["']", resp.text)
+        return m2.group(1) if m2 else "unknown"
+    except Exception as e:
+        logger.error(f"Error processing TXT {url}: {e}")
+        return "error"
