@@ -9,7 +9,7 @@ app = FastAPI()
 
 # --- CONFIGURATION ---
 # UPDATE THIS URL every time you restart your tunnel (ngrok/localhost.run)
-BASE_URL = "https://466645bd723bc6.lhr.life"
+BASE_URL = "https://unhasty-felica-vigilant.ngrok-free.dev"
 
 # Global variable to track submissions
 _submission_log = []
@@ -149,7 +149,7 @@ def get_test_html():
         html_content = f"""
         <h2>Q0: The Start of the Test</h2>
         <p>This is the first task. The answer is simply the string "start".</p>
-        <p>Post your answer to <strong>/mock-submit/start</strong>.</p>
+        <p>Post your answer to <strong>{BASE_URL}/mock-submit/start</strong>.</p>
         """
 
     # --- FIX: AUTO-REPLACE LOCALHOST ---
@@ -165,7 +165,7 @@ def get_csv_quiz():
     <h2>Q1: CSV Task</h2>
     <p>Download <a href="{BASE_URL}/files/local_cities.csv">file</a>.</p>
     <p>What is the sum of the "Population" column?</p>
-    <p>Post your answer to <strong>/mock-submit/csv</strong>.</p>
+    <p>Post your answer to <strong>{BASE_URL}/mock-submit/csv</strong>.</p>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)
@@ -176,7 +176,7 @@ def get_pdf_quiz():
     <h2>Q2: TXT Task</h2>
     <p>Download <a href="{BASE_URL}/files/simple.txt">file</a>.</p>
     <p>What is the secret word?</p>
-    <p>Post your answer to <strong>/mock-submit/pdf</strong>.</p>
+    <p>Post your answer to <strong>{BASE_URL}/mock-submit/pdf</strong>.</p>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)
@@ -187,7 +187,7 @@ def get_image_quiz():
     <h2>Q3: Image Task</h2>
     <p>Analyze <a href="{BASE_URL}/files/PNG_Test.png">image</a>.</p>
     <p>What is the main subject?</p>
-    <p>Post your answer to <strong>/mock-submit/image</strong>.</p>
+    <p>Post your answer to <strong>{BASE_URL}/mock-submit/image</strong>.</p>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)
@@ -197,7 +197,7 @@ def get_retry_quiz():
     question_html = f"""
     <h2>Q4: Retry Task</h2>
     <p>What is the capital of France?</p>
-    <p>Post your answer to <strong>/mock-submit/fail-with-reason</strong>.</p>
+    <p>Post your answer to <strong>{BASE_URL}/mock-submit/fail-with-reason</strong>.</p>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)

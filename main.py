@@ -149,37 +149,47 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
             except Exception: break
 
             page_text = resp.text
-            # Decode Mock Server Wrapper (Regex is faster/lighter than Playwright here)
+            # Decode Mock Server Wrapper
             b64_match = re.search(r'atob\([\"\']([A-Za-z0-9+/=]+)[\"\']\)', page_text)
             page_inner = base64.b64decode(b64_match.group(1)).decode(errors="ignore") if b64_match else page_text
 
-            # Extract Navigation (Regex First - Faster/Cheaper)
+            # Extract Navigation (Regex First)
             submit_url = None
             # Pattern 1: Plain text "Post your answer to <URL>"
             m_plain = re.search(r"Post.*?to\s+(https?://[^\s<]+)", page_inner, re.IGNORECASE)
             # Pattern 2: HTML "Post ... to <strong><URL></strong>"
-            m_tags = re.search(r"Post.*?to.*?>([^<]+)<", page_inner, re.IGNORECASE)
+            m_tags = re.search(r"Post.*?to.*?<strong>([^<]+)</strong>", page_inner, re.IGNORECASE)
             
             if m_plain:
-                submit_url = m_plain.group(1)
+                submit_url = m_plain.group(1).strip()
+                logger.info(f"[Regex Plain] Extracted URL: {submit_url}")
             elif m_tags:
-                submit_url = m_tags.group(1)
+                submit_url = m_tags.group(1).strip()
+                logger.info(f"[Regex Tags] Extracted URL: {submit_url}")
 
             # Fallback: LLM if Regex fails
             if not submit_url:
+                logger.info("[LLM Fallback] Regex failed, using LLM to extract URL")
                 nav_data = await query_groq(client, f"Analyze HTML. Return JSON {{'url': '...'}} for submission. HTML: {page_inner[-3000:]}")
                 submit_url = nav_data.get("url") if nav_data else None
+                if submit_url:
+                    logger.info(f"[LLM] Extracted URL: {submit_url}")
 
             if submit_url:
                 submit_url = urljoin(current_url, submit_url)
+                logger.info(f"[Final] Resolved URL: {submit_url}")
             if not submit_url: break
 
-            # Heuristics & Answers
+            # Extract file links
             file_links = re.findall(r'(https?://[^"\s<]+|/files/[^"\s<]+)', page_inner)
             norm_files = []
             for link in file_links:
-                if link.startswith("/"): norm_files.append(urljoin(current_url, link))
-                elif "localhost" in link or "lhr.life" in link or "railway" in link: norm_files.append(link)
+                if link.startswith("/"):
+                    # Relative URL - resolve against current_url
+                    norm_files.append(urljoin(current_url, link))
+                elif link.startswith("http"):
+                    # Absolute URL - use as-is
+                    norm_files.append(link)
             
             answer = None
             csv_url = next((f for f in norm_files if ".csv" in f.lower()), None)
