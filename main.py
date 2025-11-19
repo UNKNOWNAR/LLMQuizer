@@ -106,12 +106,10 @@ async def query_groq(client: httpx.AsyncClient, prompt: str, json_mode: bool = T
 async def answer_image_gemini(client: httpx.AsyncClient, img_url: str, question_context: str):
     if not GOOGLE_API_KEY: return "Error: No GOOGLE_API_KEY"
     try:
-        # Download Image
         resp = await client.get(img_url)
         resp.raise_for_status()
         img = Image.open(io.BytesIO(resp.content))
 
-        # Query Gemini
         model = genai.GenerativeModel("gemini-1.5-flash")
         prompt = f"""
         Analyze this image and answer the question embedded in this text: "{question_context}".
@@ -120,7 +118,6 @@ async def answer_image_gemini(client: httpx.AsyncClient, img_url: str, question_
         """
         response = await model.generate_content_async([prompt, img])
         
-        # Parse JSON response
         text = response.text
         text = re.sub(r"```json\s*", "", text)
         text = re.sub(r"```\s*$", "", text)
@@ -149,28 +146,23 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
             except Exception: break
 
             page_text = resp.text
-            # Decode Mock Server Wrapper
             b64_match = re.search(r'atob\([\"\']([A-Za-z0-9+/=]+)[\"\']\)', page_text)
             page_inner = base64.b64decode(b64_match.group(1)).decode(errors="ignore") if b64_match else page_text
 
-            # Extract Navigation (Regex First)
-            submit_url = None
-            # Pattern 1: Plain text "Post your answer to <URL>"
-            m_plain = re.search(r"Post.*?to\s+(https?://[^\s<]+)", page_inner, re.IGNORECASE)
-            # Pattern 2: HTML "Post ... to <strong><URL></strong>"
-            m_tags = re.search(r"Post.*?to.*?<strong>([^<]+)</strong>", page_inner, re.IGNORECASE)
+            # Extract Navigation - Remove <pre> blocks first to avoid extracting example URLs
+            page_clean = re.sub(r'<pre>.*?</pre>', '', page_inner, flags=re.DOTALL | re.IGNORECASE)
             
+            submit_url = None
+            # Pattern: "Post your answer to URL"
+            m_plain = re.search(r'Post your answer to\s+(https?://[^\s<]+)', page_clean, re.IGNORECASE)
             if m_plain:
                 submit_url = m_plain.group(1).strip()
-                logger.info(f"[Regex Plain] Extracted URL: {submit_url}")
-            elif m_tags:
-                submit_url = m_tags.group(1).strip()
-                logger.info(f"[Regex Tags] Extracted URL: {submit_url}")
+                logger.info(f"[Regex] Extracted URL: {submit_url}")
 
-            # Fallback: LLM if Regex fails
+            # Fallback: LLM if regex fails
             if not submit_url:
                 logger.info("[LLM Fallback] Regex failed, using LLM to extract URL")
-                nav_data = await query_groq(client, f"Analyze HTML. Return JSON {{'url': '...'}} for submission. HTML: {page_inner[-3000:]}")
+                nav_data = await query_groq(client, f"Analyze HTML. Return JSON {{'url': '...'}} for submission. HTML: {page_clean[-3000:]}")
                 submit_url = nav_data.get("url") if nav_data else None
                 if submit_url:
                     logger.info(f"[LLM] Extracted URL: {submit_url}")
@@ -185,10 +177,8 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
             norm_files = []
             for link in file_links:
                 if link.startswith("/"):
-                    # Relative URL - resolve against current_url
                     norm_files.append(urljoin(current_url, link))
                 elif link.startswith("http"):
-                    # Absolute URL - use as-is
                     norm_files.append(link)
             
             answer = None
@@ -204,7 +194,6 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
                 logger.info(f"Image found: {img_url}. Sending to Gemini.")
                 answer = await answer_image_gemini(client, img_url, page_inner[-1000:])
             else:
-                # LLM Fallback for Q&A
                 qa_data = await query_groq(client, f"Answer question in text. Return JSON {{'answer': '...'}}. Text: {page_inner[-2000:]}")
                 answer = qa_data.get("answer") if qa_data else "start"
 

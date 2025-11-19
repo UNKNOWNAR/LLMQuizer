@@ -74,7 +74,14 @@ async def mock_submit_csv(request: Request):
     data = await request.json()
     _submission_log.append(data)
     print_submission(data, "CSV")
-    return JSONResponse(content={"correct": True, "url": f"{BASE_URL}/mock-quiz/pdf", "reason": "CSV task correct."})
+    return JSONResponse(content={"correct": True, "url": f"{BASE_URL}/mock-quiz/txt", "reason": "CSV task correct. Next: TXT file."})
+
+@app.post("/mock-submit/txt")
+async def mock_submit_txt(request: Request):
+    data = await request.json()
+    _submission_log.append(data)
+    print_submission(data, "TXT")
+    return JSONResponse(content={"correct": True, "url": f"{BASE_URL}/mock-quiz/image", "reason": "TXT task correct. Next: Image analysis."})
 
 @app.post("/mock-submit/pdf")
 async def mock_submit_pdf(request: Request):
@@ -88,21 +95,14 @@ async def mock_submit_image(request: Request):
     data = await request.json()
     _submission_log.append(data)
     print_submission(data, "IMAGE")
-    return JSONResponse(content={"correct": True, "url": f"{BASE_URL}/mock-quiz/retry-test", "reason": "Image task correct."})
+    return JSONResponse(content={"correct": True, "url": f"{BASE_URL}/mock-quiz/pdf", "reason": "Image task correct. Next: PDF document."})
 
-@app.post("/mock-submit/fail-with-reason")
-async def mock_submit_fail(request: Request):
+@app.post("/mock-submit/pdf")
+async def mock_submit_pdf(request: Request):
     data = await request.json()
     _submission_log.append(data)
-    print_submission(data, "RETRY_ATTEMPT")
-    
-    retry_url = f"{BASE_URL}/mock-quiz/retry-test"
-    submission_count = sum(1 for item in _submission_log if item.get("url") == retry_url)
-
-    if submission_count > 1:
-        return JSONResponse(content={"correct": True, "url": f"{BASE_URL}/mock-quiz/stop-test", "reason": "Retry successful!"})
-    
-    return JSONResponse(content={"correct": False, "url": None, "reason": "The first answer was wrong. Please try again."})
+    print_submission(data, "PDF")
+    return JSONResponse(content={"correct": True, "url": None, "reason": "All tasks completed successfully!"})
 
 @app.post("/mock-submit/stop")
 async def mock_submit_stop(request: Request):
@@ -145,11 +145,19 @@ def get_test_html():
         with open(test_html_path, "r", encoding="utf-8") as f:
             html_content = f.read()
     else:
-        # Fallback if file is missing
+        # Q0: Start - Simple text answer
         html_content = f"""
-        <h2>Q0: The Start of the Test</h2>
+        <h2>Q0. The Start of the Test</h2>
         <p>This is the first task. The answer is simply the string "start".</p>
-        <p>Post your answer to <strong>{BASE_URL}/mock-submit/start</strong>.</p>
+        <p>Post your answer to {BASE_URL}/mock-submit/start with this JSON payload:</p>
+        <pre>
+{{
+  "email": "your-email",
+  "secret": "your-secret",
+  "url": "{BASE_URL}/",
+  "answer": "start"
+}}
+        </pre>
         """
 
     # --- FIX: AUTO-REPLACE LOCALHOST ---
@@ -161,43 +169,80 @@ def get_test_html():
 
 @app.get("/mock-quiz/csv", response_class=HTMLResponse)
 def get_csv_quiz():
+    # Q1: CSV file analysis
     question_html = f"""
-    <h2>Q1: CSV Task</h2>
-    <p>Download <a href="{BASE_URL}/files/local_cities.csv">file</a>.</p>
-    <p>What is the sum of the "Population" column?</p>
-    <p>Post your answer to <strong>{BASE_URL}/mock-submit/csv</strong>.</p>
+    <h2>Q1. CSV Data Analysis</h2>
+    <p>Download <a href="{BASE_URL}/files/sales.csv">sales data CSV</a>.</p>
+    <p>What is the sum of all values in the CSV file?</p>
+    <p>Post your answer to {BASE_URL}/mock-submit/csv with this JSON payload:</p>
+    <pre>
+{{
+  "email": "your-email",
+  "secret": "your-secret",
+  "url": "{BASE_URL}/mock-quiz/csv",
+  "answer": 12345  // sum of values
+}}
+    </pre>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)
 
-@app.get("/mock-quiz/pdf", response_class=HTMLResponse)
-def get_pdf_quiz():
+@app.get("/mock-quiz/txt", response_class=HTMLResponse)
+def get_txt_quiz():
+    # Q2: TXT file secret extraction
     question_html = f"""
-    <h2>Q2: TXT Task</h2>
-    <p>Download <a href="{BASE_URL}/files/simple.txt">file</a>.</p>
-    <p>What is the secret word?</p>
-    <p>Post your answer to <strong>{BASE_URL}/mock-submit/pdf</strong>.</p>
+    <h2>Q2. Text File Secret</h2>
+    <p>Download <a href="{BASE_URL}/files/simple.txt">text file</a>.</p>
+    <p>What is the secret word in quotes?</p>
+    <p>Post your answer to {BASE_URL}/mock-submit/txt with this JSON payload:</p>
+    <pre>
+{{
+  "email": "your-email",
+  "secret": "your-secret",
+  "url": "{BASE_URL}/mock-quiz/txt",
+  "answer": "secret-word"
+}}
+    </pre>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)
 
 @app.get("/mock-quiz/image", response_class=HTMLResponse)
 def get_image_quiz():
+    # Q3: Image analysis
     question_html = f"""
-    <h2>Q3: Image Task</h2>
-    <p>Analyze <a href="{BASE_URL}/files/PNG_Test.png">image</a>.</p>
-    <p>What is the main subject?</p>
-    <p>Post your answer to <strong>{BASE_URL}/mock-submit/image</strong>.</p>
+    <h2>Q3. Image Analysis</h2>
+    <p>Analyze <a href="{BASE_URL}/files/PNG_Test.png">this image</a>.</p>
+    <p>What is the main subject or content of the image?</p>
+    <p>Post your answer to {BASE_URL}/mock-submit/image with this JSON payload:</p>
+    <pre>
+{{
+  "email": "your-email",
+  "secret": "your-secret",
+  "url": "{BASE_URL}/mock-quiz/image",
+  "answer": "description of image"
+}}
+    </pre>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)
 
-@app.get("/mock-quiz/retry-test", response_class=HTMLResponse)
-def get_retry_quiz():
+@app.get("/mock-quiz/pdf", response_class=HTMLResponse)
+def get_pdf_quiz():
+    # Q4: PDF document
     question_html = f"""
-    <h2>Q4: Retry Task</h2>
-    <p>What is the capital of France?</p>
-    <p>Post your answer to <strong>{BASE_URL}/mock-submit/fail-with-reason</strong>.</p>
+    <h2>Q4. PDF Document</h2>
+    <p>Download <a href="{BASE_URL}/files/dummy_doc.pdf">PDF document</a>.</p>
+    <p>What information is contained in the PDF?</p>
+    <p>Post your answer to {BASE_URL}/mock-submit/pdf with this JSON payload:</p>
+    <pre>
+{{
+  "email": "your-email",
+  "secret": "your-secret",
+  "url": "{BASE_URL}/mock-quiz/pdf",
+  "answer": "pdf content summary"
+}}
+    </pre>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)
@@ -207,7 +252,7 @@ def get_stop_quiz():
     question_html = f"""
     <h2>Q5: Stop Task</h2>
     <p>What is 2+2?</p>
-    <p>Post your answer to <strong>/mock-submit/stop</strong>.</p>
+    <p>Post your answer to {BASE_URL}/mock-submit/stop.</p>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)
@@ -218,7 +263,7 @@ def get_broken_link_quiz():
     question_html = f"""
     <h2>Edge Case: Broken Link</h2>
     <p>Download <a href="{BASE_URL}/files/non-existent-file.csv">file</a>.</p>
-    <p>Post to <strong>/mock-submit/broken-link</strong>.</p>
+    <p>Post to {BASE_URL}/mock-submit/broken-link.</p>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)
@@ -228,7 +273,7 @@ def get_llm_fail_quiz():
     question_html = f"""
     <h2>Edge Case: LLM Fail</h2>
     <p>Respond with invalid JSON key.</p>
-    <p>Post to <strong>/mock-submit/llm-fail</strong>.</p>
+    <p>Post to {BASE_URL}/mock-submit/llm-fail.</p>
     """
     b64_content = base64.b64encode(question_html.encode()).decode()
     return create_js_page(b64_content)
