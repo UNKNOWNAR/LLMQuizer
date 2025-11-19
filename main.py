@@ -274,8 +274,7 @@ async def answer_csv_sum(client, url):
         for row in lines[1:]:
             cols = row.split(',')
             if len(cols) > idx:
-                val_str = re.sub(r"[^
-0-9."]", "", cols[idx])
+                val_str = re.sub(r"[^0-9.\-]", "", cols[idx])
                 if val_str:
                     try:
                         total += float(val_str)
