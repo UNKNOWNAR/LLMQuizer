@@ -164,7 +164,9 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
         MAX_STEPS = 15
 
         for step in range(MAX_STEPS):
-            if not current_url or current_url in visited: break
+            if not current_url or current_url in visited:
+                logger.info(f"Stopping chain: current_url is empty or already visited. Current: {current_url}, Visited: {current_url in visited}")
+                break
             visited.add(current_url)
             logger.info(f"Step {step+1}: {current_url}")
 
@@ -173,12 +175,15 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
                 if resp.status_code >= 400:
                     logger.error(f"Failed to fetch {current_url}, status: {resp.status_code}")
                     break
+            except httpx.RequestError as e:
+                logger.error(f"Request error fetching {current_url}: {e}")
+                break
             except Exception as e:
-                logger.error(f"Exception fetching {current_url}: {e}")
+                logger.error(f"Unexpected error fetching {current_url}: {e}")
                 break
 
             page_text = resp.text
-            b64_match = re.search(r'atob(["\\][A-Za-z0-9+/=]+["\\]])', page_text)
+            b64_match = re.search(r'atob\([\'"]([A-Za-z0-9+/=]+)[\'"]\)', page_text)
             page_inner = base64.b64decode(b64_match.group(1)).decode(errors="ignore") if b64_match else page_text
 
             # --- URL EXTRACTION ---
@@ -209,7 +214,7 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
             logger.info(f"[Final] Resolved URL: {submit_url}")
 
             # --- FILE & ANSWER LOGIC ---
-            file_links = re.findall(r'href\s*=\s*["\\](https?://[^"\\]+|/files/[^"\\]+)["\\]', page_inner)
+            file_links = re.findall(r'href\s*=\s*["\'](https?://[^"\']+|/files/[^"\']+?)["\']', page_inner)
             norm_files = [urljoin(current_url, link) for link in file_links]
             
             answer = None
@@ -226,13 +231,15 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
                 answer = await answer_image_gemini(client, img_url, page_inner[-1000:])
             else:
                 # If no files, assume it's a simple text question
-                qa_data = await query_groq(client, f"Answer question in text. Return JSON {{'answer': '...'}}. Text: {page_inner[-2000:]}")
-                answer = qa_data.get("answer") if qa_data else "start"
+                logger.info("No specific file type found. Querying LLM for answer from page text.")
+                qa_data = await query_groq(client, f"Answer the question or provide the required information from the following text. Return a JSON object with a single key 'answer'. Text: {page_inner[-2000:]}")
+                answer = qa_data.get("answer") if qa_data else "start" # Default to "start" if LLM fails
 
             # --- SUBMISSION ---
             try:
                 logger.info(f"Submitting answer: {answer}")
-                post_resp = await client.post(submit_url, json={"email": email, "secret": secret, "url": current_url, "answer": answer})
+                post_payload = {"email": email, "secret": secret, "url": current_url, "answer": answer}
+                post_resp = await client.post(submit_url, json=post_payload)
                 
                 if post_resp.status_code != 200:
                     logger.error(f"Submission to {submit_url} failed with status {post_resp.status_code}: {post_resp.text}")
@@ -244,13 +251,19 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
                 if res.get("correct"):
                     current_url = res.get("url")
                     if not current_url:
-                        logger.info("Quiz complete!")
+                        logger.info("Quiz complete! No next URL provided.")
                         break
                 else:
                     logger.warning(f"Answer was incorrect: {res.get('reason')}. Stopping.")
                     break
+            except httpx.RequestError as e:
+                logger.error(f"Request error during submission to {submit_url}: {e}")
+                break
+            except json.JSONDecodeError:
+                logger.error(f"Failed to decode JSON from submission response: {post_resp.text}")
+                break
             except Exception as e:
-                logger.error(f"Exception during submission: {e}")
+                logger.error(f"Unexpected exception during submission: {e}")
                 break
 
 # --- TASK-SPECIFIC HELPERS ---
@@ -290,12 +303,12 @@ async def answer_txt_secret(client, url):
         logger.info(f"Processing TXT/PDF: {url}")
         resp = await client.get(url)
         # Look for a word in quotes, common for secrets
-        m = re.search(r"the secret word is ['"]([A-Za-z0-9\-]+)['"]", resp.text, re.IGNORECASE)
+        m = re.search(r"the secret word is ['\"]([A-Za-z0-9\-]+)['\"]", resp.text, re.IGNORECASE)
         if m:
             return m.group(1)
         
         # Fallback for any quoted word
-        m2 = re.search(r["']([A-Za-z0-9\-]+)["']", resp.text)
+        m2 = re.search(r"['\"]([A-Za-z0-9\-]+)['\"]", resp.text)
         return m2.group(1) if m2 else "unknown"
     except Exception as e:
         logger.error(f"Error processing TXT {url}: {e}")
