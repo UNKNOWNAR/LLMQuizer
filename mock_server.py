@@ -16,11 +16,12 @@ _submission_log = []
 
 # Path helpers for repo-local dummy files
 ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
-DUMMY_CSV = os.path.join(ROOT_DIR, "Dummy_CSV__sales_.csv")
-DUMMY_TXT = os.path.join(ROOT_DIR, "dummy_notes.txt")
-DUMMY_PNG = os.path.join(ROOT_DIR, "dummy_table.png")
-DUMMY_JPG = os.path.join(ROOT_DIR, "dummy_table.jpg")
-DUMMY_PDF = os.path.join(ROOT_DIR, "dummy_doc.pdf")
+DEMO_FILES_DIR = os.path.join(ROOT_DIR, "demo_files")
+DUMMY_CSV = os.path.join(DEMO_FILES_DIR, "Dummy_CSV__sales_.csv")
+DUMMY_TXT = os.path.join(DEMO_FILES_DIR, "dummy_notes.txt")
+DUMMY_PNG = os.path.join(DEMO_FILES_DIR, "dummy_table.png")
+DUMMY_JPG = os.path.join(DEMO_FILES_DIR, "dummy_table.jpg")
+DUMMY_PDF = os.path.join(DEMO_FILES_DIR, "dummy_doc.pdf")
 
 
 # --- 1. FAKE DATA ENDPOINTS ---
@@ -67,35 +68,35 @@ async def mock_submit_start(request: Request):
     data = await request.json()
     _submission_log.append(data)
     print_submission(data, "START")
-    return JSONResponse(content={"correct": True, "url": f"{BASE_URL}/mock-quiz/csv", "reason": "Initial task correct."})
+    return JSONResponse(content={"correct": True, "url": None, "reason": "Initial task correct."})
 
 @app.post("/mock-submit/csv")
 async def mock_submit_csv(request: Request):
     data = await request.json()
     _submission_log.append(data)
     print_submission(data, "CSV")
-    return JSONResponse(content={"correct": True, "url": f"{BASE_URL}/mock-quiz/txt", "reason": "CSV task correct. Next: TXT file."})
+    return JSONResponse(content={"correct": True, "url": None, "reason": "CSV task correct."})
 
 @app.post("/mock-submit/txt")
 async def mock_submit_txt(request: Request):
     data = await request.json()
     _submission_log.append(data)
     print_submission(data, "TXT")
-    return JSONResponse(content={"correct": True, "url": f"{BASE_URL}/mock-quiz/image", "reason": "TXT task correct. Next: Image analysis."})
+    return JSONResponse(content={"correct": True, "url": None, "reason": "TXT task correct."})
 
 @app.post("/mock-submit/pdf")
 async def mock_submit_pdf(request: Request):
     data = await request.json()
     _submission_log.append(data)
     print_submission(data, "PDF")
-    return JSONResponse(content={"correct": True, "url": f"{BASE_URL}/mock-quiz/image", "reason": "PDF task correct."})
+    return JSONResponse(content={"correct": True, "url": None, "reason": "PDF task correct."})
 
 @app.post("/mock-submit/image")
 async def mock_submit_image(request: Request):
     data = await request.json()
     _submission_log.append(data)
     print_submission(data, "IMAGE")
-    return JSONResponse(content={"correct": True, "url": f"{BASE_URL}/mock-quiz/pdf", "reason": "Image task correct. Next: PDF document."})
+    return JSONResponse(content={"correct": True, "url": None, "reason": "Image task correct."})
 
 @app.post("/mock-submit/pdf")
 async def mock_submit_pdf(request: Request):

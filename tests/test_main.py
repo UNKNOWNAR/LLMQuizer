@@ -10,7 +10,7 @@ from time import sleep
 from unittest.mock import patch, AsyncMock
 
 # Add project root to path to allow importing main
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 # ─────────────────────────────────────────────

@@ -45,17 +45,17 @@ async def start_quiz(request: Request, background: BackgroundTasks):
     try:
         payload = await request.json()
     except Exception:
-        raise HTTPException(status_code=422, detail="JSON decode error")
+        raise HTTPException(status_code=400, detail="JSON decode error")
 
     email = payload.get("email")
     secret = payload.get("secret")
     start_url = payload.get("url")
 
     if not email or not secret or not start_url:
-        raise HTTPException(status_code=422, detail="Missing fields")
+        raise HTTPException(status_code=400, detail="Missing fields")
 
     if secret != MY_SECRET:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+        raise HTTPException(status_code=403, detail="Invalid Secret")
     
     if not GROQ_API_KEY:
         logger.critical("GROQ_API_KEY missing.")
@@ -101,13 +101,12 @@ async def query_groq(client: httpx.AsyncClient, prompt: str, json_mode: bool = T
         return None
 
 async def answer_image_gemini(client: httpx.AsyncClient, img_url: str, question_context: str):
-    if not GOOGLE_API_KEY: return "Error: No GOOGLE_API_KEY"
     try:
         resp = await client.get(img_url)
         resp.raise_for_status()
         img = Image.open(io.BytesIO(resp.content))
 
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         prompt = f"""
         Analyze this image and answer the question embedded in this text: "{question_context}".
         Return a JSON object with a single key "answer".
@@ -224,7 +223,7 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
             logger.info(f"[Final] Resolved URL: {submit_url}")
 
             # --- FILE & ANSWER LOGIC ---
-            file_links = re.findall(r'href\s*=\s*["\'](https?://[^"\']+|/files/[^"\']+?)["\']', page_inner)
+            file_links = re.findall(r'(?:href|src)\s*=\s*["\']([^"\']+)["\']', page_inner)
             norm_files = [urljoin(current_url, link) for link in file_links]
             
             answer = None
