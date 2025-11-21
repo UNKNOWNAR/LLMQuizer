@@ -232,13 +232,13 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
             img_url = next((f for f in norm_files if f.endswith((".png", ".jpg", ".jpeg"))), None)
 
             if csv_url:
-                answer = await answer_csv_sum(client, csv_url)
+                answer = await answer_csv_sum(client, csv_url, page_inner[-1000:])
             elif txt_url:
                 # Check if it's actually a PDF
                 if txt_url.lower().endswith(".pdf"):
                      answer = await answer_pdf(client, txt_url, page_inner[-1000:])
                 else:
-                     answer = await answer_txt_secret(client, txt_url)
+                     answer = await answer_txt_secret(client, txt_url, page_inner[-1000:])
             elif img_url:
                 logger.info(f"Image found: {img_url}. Sending to Gemini.")
                 answer = await answer_image_gemini(client, img_url, page_inner[-1000:])
@@ -280,49 +280,57 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
                 break
 
 # --- TASK-SPECIFIC HELPERS ---
-async def answer_csv_sum(client, url):
+async def answer_csv_sum(client, url, question_context=""):
     try:
         logger.info(f"Processing CSV: {url}")
         resp = await client.get(url)
-        lines = resp.text.strip().splitlines()
-        if len(lines) < 2: return 0
+        csv_content = resp.text
         
-        header = [h.lower().strip() for h in lines[0].split(',')]
-        # Find the most likely 'value' column
-        value_col_name = next((c for c in header if c in ["value", "sales", "amount", "price"]), None)
-        if not value_col_name:
-            # If no obvious name, assume the last column is the value
-            idx = len(header) - 1
-        else:
-            idx = header.index(value_col_name)
-
-        total = 0
-        for row in lines[1:]:
-            cols = row.split(',')
-            if len(cols) > idx:
-                val_str = re.sub(r"[^0-9.\- ]", "", cols[idx])
-                if val_str:
-                    try:
-                        total += float(val_str)
-                    except ValueError:
-                        continue # Skip rows where conversion fails
-        return round(total)
+        # Use LLM to answer the question based on CSV content
+        prompt = f"""
+        Answer the question based on the following CSV file content.
+        Question: {question_context}
+        
+        CSV Content:
+        {csv_content[:5000]}
+        
+        Return a JSON object with a single key "answer". 
+        If the question asks for a sum or calculation, return just the number.
+        """
+        
+        data = await query_groq(client, prompt)
+        answer = data.get("answer") if data else 0
+        
+        # Try to convert to number if it looks like one
+        try:
+            return int(float(str(answer)))
+        except:
+            return answer
+            
     except Exception as e:
         logger.error(f"Error processing CSV {url}: {e}")
         return 0
 
-async def answer_txt_secret(client, url):
+async def answer_txt_secret(client, url, question_context=""):
     try:
         logger.info(f"Processing TXT: {url}")
         resp = await client.get(url)
-        # Look for a word in quotes, common for secrets
-        m = re.search(r"the secret word is ['\"]([A-Za-z0-9\-]+)['\"]", resp.text, re.IGNORECASE)
-        if m:
-            return m.group(1)
+        text_content = resp.text
         
-        # Fallback for any quoted word
-        m2 = re.search(r"['\"]([A-Za-z0-9\-]+)['\"]", resp.text)
-        return m2.group(1) if m2 else "unknown"
+        # Use LLM to answer the question based on text content
+        prompt = f"""
+        Answer the question based on the following text file content.
+        Question: {question_context}
+        
+        Text File Content:
+        {text_content[:5000]}
+        
+        Return a JSON object with a single key "answer". The answer should be concise (a number, word, or short phrase).
+        """
+        
+        data = await query_groq(client, prompt)
+        return data.get("answer") if data else "unknown"
+        
     except Exception as e:
         logger.error(f"Error processing TXT {url}: {e}")
         return "error"
