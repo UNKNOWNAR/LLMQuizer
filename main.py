@@ -163,6 +163,43 @@ def extract_submit_url(html_content: str) -> Optional[str]:
     logger.warning("All regex patterns failed to find a submission URL.")
     return None
 
+def process_answer(answer: Any) -> Any:
+    """
+    Process the answer to handle different formats:
+    - Convert string booleans ("true"/"false") to actual booleans
+    - Keep numbers as numbers
+    - Keep strings as strings
+    - Keep JSON objects/arrays as-is
+    """
+    if answer is None:
+        return None
+    
+    # If it's already a dict/list (JSON object/array), return as-is
+    if isinstance(answer, (dict, list)):
+        return answer
+    
+    # Convert to string for processing
+    answer_str = str(answer).strip()
+    
+    # Handle boolean strings
+    if answer_str.lower() == "true":
+        return True
+    elif answer_str.lower() == "false":
+        return False
+    
+    # Try to convert to number
+    try:
+        # Try int first
+        if '.' not in answer_str:
+            return int(answer_str)
+        # Then float
+        return float(answer_str)
+    except (ValueError, AttributeError):
+        pass
+    
+    # Return as string
+    return answer
+
 
 # --- AGENT LOGIC ---
 async def run_agent_chain(start_url: str, email: str, secret: str):
@@ -248,6 +285,9 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
                 qa_data = await query_groq(client, f"Answer the question or provide the required information from the following text. Return a JSON object with a single key 'answer'. Text: {page_inner[-2000:]}")
                 answer = qa_data.get("answer") if qa_data else "start" # Default to "start" if LLM fails
 
+            # Process answer to handle different formats (boolean, number, string, JSON)
+            answer = process_answer(answer)
+
             # --- SUBMISSION ---
             try:
                 logger.info(f"Submitting answer: {answer}")
@@ -261,14 +301,30 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
                 res = post_resp.json()
                 logger.info(f"Submission response: {res}")
                 
+                # Check if there's a next URL (regardless of correct/incorrect)
+                next_url = res.get("url")
+                
                 if res.get("correct"):
-                    current_url = res.get("url")
-                    if not current_url:
+                    logger.info("✓ Answer was correct!")
+                    if next_url:
+                        current_url = next_url
+                        logger.info(f"Moving to next quiz: {next_url}")
+                    else:
                         logger.info("Quiz complete! No next URL provided.")
                         break
                 else:
-                    logger.warning(f"Answer was incorrect: {res.get('reason')}. Stopping.")
-                    break
+                    # Answer was wrong
+                    reason = res.get('reason', 'No reason provided')
+                    logger.warning(f"✗ Answer was incorrect: {reason}")
+                    
+                    if next_url:
+                        # They gave us the next URL anyway, continue to it
+                        logger.info(f"Continuing to next URL despite wrong answer: {next_url}")
+                        current_url = next_url
+                    else:
+                        # No next URL and wrong answer - quiz is over
+                        logger.warning("No next URL provided. Quiz ended.")
+                        break
             except httpx.RequestError as e:
                 logger.error(f"Request error during submission to {submit_url}: {e}")
                 break
