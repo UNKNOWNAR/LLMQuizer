@@ -338,8 +338,6 @@ async def answer_pdf(client, url, question_context):
         text_content = ""
         for page in reader.pages:
             text_content += page.extract_text() + "\n"
-            
-        logger.info(f"Extracted PDF Text (first 500 chars): {text_content[:500]}...")
         
         # Use LLM to answer the question based on PDF content
         prompt = f"""
