@@ -241,20 +241,25 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
 
             # LLM Fallback if all regex fails
             if not submit_url:
-                logger.info("[LLM Fallback] Using LLM to extract submission URL.")
-                prompt = f"""
-                You are an expert web agent. Your task is to find the **submission URL** from the provided HTML snippet.
-                The submission URL is the URL where the answer should be POSTed. It's usually in a phrase like 'Post your answer to...'.
-                **Crucially, you must IGNORE any URLs found inside `<pre>` or `<code>` tags**, as they are examples for the user.
-                Return a JSON object with a single key "submit_url".
+                # Project 2 Specific: Default to /submit if on tds-llm-analysis
+                if "tds-llm-analysis.s-anand.net" in current_url:
+                    logger.info("[Project 2] Defaulting to /submit endpoint.")
+                    submit_url = "https://tds-llm-analysis.s-anand.net/submit"
+                else:
+                    logger.info("[LLM Fallback] Using LLM to extract submission URL.")
+                    prompt = f"""
+                    You are an expert web agent. Your task is to find the **submission URL** from the provided HTML snippet.
+                    The submission URL is the URL where the answer should be POSTed. It's usually in a phrase like 'Post your answer to...'.
+                    **Crucially, you must IGNORE any URLs found inside `<pre>` or `<code>` tags**, as they are examples for the user.
+                    Return a JSON object with a single key "submit_url".
 
-                HTML:
-                {page_inner[-3000:]}
-                """
-                nav_data = await query_groq(client, prompt)
-                submit_url = nav_data.get("submit_url") if nav_data else None
-                if submit_url:
-                    logger.info(f"[LLM] Extracted URL: {submit_url}")
+                    HTML:
+                    {page_inner[-3000:]}
+                    """
+                    nav_data = await query_groq(client, prompt)
+                    submit_url = nav_data.get("submit_url") if nav_data else None
+                    if submit_url:
+                        logger.info(f"[LLM] Extracted URL: {submit_url}")
 
             if not submit_url:
                 logger.error("Could not determine submission URL. Ending chain.")
