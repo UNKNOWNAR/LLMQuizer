@@ -106,7 +106,7 @@ async def answer_image_gemini(client: httpx.AsyncClient, img_url: str, question_
         resp.raise_for_status()
         img = Image.open(io.BytesIO(resp.content))
 
-        model = genai.GenerativeModel("gemini-2.5-flash")
+        model = genai.GenerativeModel("gemini-1.5-flash")
         prompt = f"""
         Analyze this image and answer the question embedded in this text: "{question_context}".
         Return a JSON object with a single key "answer".
@@ -123,6 +123,43 @@ async def answer_image_gemini(client: httpx.AsyncClient, img_url: str, question_
     except Exception as e:
         logger.error(f"[Gemini] Error: {e}")
         return "Error processing image"
+
+async def answer_audio_gemini(client: httpx.AsyncClient, audio_url: str, question_context: str):
+    try:
+        import tempfile
+        logger.info(f"Downloading audio: {audio_url}")
+        resp = await client.get(audio_url)
+        resp.raise_for_status()
+        
+        # Save to temp file for Gemini
+        suffix = os.path.splitext(audio_url)[1] or ".mp3"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            tmp.write(resp.content)
+            tmp_path = tmp.name
+            
+        try:
+            logger.info("Uploading audio to Gemini...")
+            audio_file = genai.upload_file(tmp_path)
+            
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            prompt = f"""
+            Listen to this audio and answer the question: "{question_context}".
+            Return a JSON object with a single key "answer".
+            """
+            response = await model.generate_content_async([prompt, audio_file])
+            
+            text = response.text
+            text = re.sub(r"```json\s*", "", text)
+            text = re.sub(r"```\s*$", "", text)
+            data = json.loads(text)
+            return data.get("answer")
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+                
+    except Exception as e:
+        logger.error(f"[Gemini Audio] Error: {e}")
+        return "Error processing audio"
 
 def extract_submit_url(html_content: str) -> Optional[str]:
     """
@@ -276,6 +313,7 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
             csv_url = next((f for f in norm_files if ".csv" in f.lower()), None)
             txt_url = next((f for f in norm_files if f.endswith((".txt", ".pdf"))), None)
             img_url = next((f for f in norm_files if f.endswith((".png", ".jpg", ".jpeg"))), None)
+            audio_url = next((f for f in norm_files if f.endswith((".mp3", ".wav", ".ogg"))), None)
 
             if csv_url:
                 answer = await answer_csv_sum(client, csv_url, page_inner[-1000:])
@@ -288,10 +326,13 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
             elif img_url:
                 logger.info(f"Image found: {img_url}. Sending to Gemini.")
                 answer = await answer_image_gemini(client, img_url, page_inner[-1000:])
+            elif audio_url:
+                logger.info(f"Audio found: {audio_url}. Sending to Gemini.")
+                answer = await answer_audio_gemini(client, audio_url, page_inner[-1000:])
             else:
                 # If no files, assume it's a simple text question
                 logger.info("No specific file type found. Querying LLM for answer from page text.")
-                qa_data = await query_groq(client, f"Answer the question or provide the required information from the following text. If this is a start page or instruction page with no specific question, return 'start'. Return a JSON object with a single key 'answer'. Text: {page_inner[-2000:]}")
+                qa_data = await query_groq(client, f"Answer the question or provide the required information from the following text. Return a JSON object with a single key 'answer'. Text: {page_inner[-2000:]}")
                 answer = qa_data.get("answer") if qa_data else "start" # Default to "start" if LLM fails
 
             # Process answer to handle different formats (boolean, number, string, JSON)
