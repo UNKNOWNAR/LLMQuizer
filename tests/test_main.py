@@ -39,7 +39,7 @@ def main_app_server():
     """
     Use Railway deployment for all tests.
     """
-    railway_url = "https://llmquizer-production.up.railway.app"
+    railway_url = "https://llm-quizer.up.railway.app"
     print(f"\n[main_app_server] Using Railway deployment: {railway_url}")
     yield railway_url
 

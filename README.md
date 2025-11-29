@@ -1,151 +1,143 @@
-# LLM-Powered Quiz Solver Agent
+# LLMQuizer - Intelligent Quiz Solver Agent 🤖
 
-## Overview
+A robust, AI-powered autonomous agent designed to solve complex multi-step quizzes. Built with FastAPI, Playwright, Groq (Llama 3), and Google Gemini Vision.
 
-This project is a sophisticated, asynchronous FastAPI application designed to autonomously solve a series of online quizzes. It leverages a hybrid AI approach, using multiple large language models to understand questions, process various data formats, and find correct answers.
+## 🚀 Key Features
 
-The agent can scrape web pages, extract text from documents like PDFs and CSVs, and analyze images to solve complex, multi-step data challenges.
+- **Multi-Modal Solving**: Handles Text, CSV, PDF, Images, JSON, and Base64 inputs.
+- **Intelligent Retry Logic**: 
+  - Prioritizes "Next URL" if provided (even on wrong answers).
+  - Automatically retries with LLM feedback if stuck (no next URL).
+- **Visualization Generation**: Creates charts (Bar/Line) from data and submits as Base64.
+- **Resilient Navigation**: 
+  - Dynamic URL extraction (Regex + LLM fallback).
+  - Handles `ngrok` browser warning pages automatically.
+- **Production Ready**:
+  - 1MB Payload validation.
+  - Graceful error handling & timeouts.
+  - Dockerized for Railway deployment.
 
-## Features
+## 🛠️ Tech Stack
 
-- **Asynchronous Web Server**: Built with FastAPI for high-performance, non-blocking I/O.
-- **Dynamic Web Scraping**: Uses Playwright to render JavaScript-heavy pages and extract content, mimicking a real user.
-- **Hybrid AI Brain**:
-    - **Groq LPU Inference Engine**: Utilizes the ultra-fast Llama 3 model via Groq for all text-based tasks (analyzing web text, PDFs, CSVs).
-    - **Google Gemini 1.5 Flash**: Employs Google's powerful multimodal model to analyze and answer questions about images.
-- **Intelligent Task Routing**: Automatically detects the type of data (text, image, PDF, etc.) and routes the task to the appropriate AI model.
-- **Recursive Quiz Solving**: Capable of solving an entire chain of quizzes, automatically proceeding to the next URL upon a successful or directed submission.
-- **Versatile Answer Formats**: Supports various answer formats including plain text, JSON objects, Base64 data URIs, and booleans.
-- **Robust Error Handling**: Manages API failures, 404 errors, and LLM hallucinations, ensuring the agent fails gracefully or retries when appropriate.
-- **Dockerized**: Comes with a `Dockerfile` for easy containerization and deployment, including all necessary system dependencies.
+- **Core**: Python 3.10, FastAPI
+- **LLM**: Groq (Llama 3.3 70B) for text/logic
+- **Vision**: Google Gemini Flash 2.0 for images/PDFs
+- **Browser**: Playwright (Headless)
+- **Deployment**: Railway + Docker
 
-## Architecture Flow
+## ⚡ Quick Start
 
-The application operates in a simple yet powerful loop for each quiz:
-
-1.  **Receive Task**: The agent receives a POST request at the `/quiz` endpoint with a URL to a quiz.
-2.  **Scrape Content**: It navigates to the URL with a headless browser (Playwright) and scrapes the fully rendered text content.
-3.  **Detect Data Source**: The agent analyzes the scraped text to find links to external data files like PDFs, CSVs, or images.
-4.  **Route to AI Model**:
-    - If an **image** is detected, it's sent to **Google Gemini 1.5 Flash** along with the text prompt.
-    - If a **text-based file** (PDF, CSV) or no file is detected, the context is sent to **Groq's Llama 3** model.
-5.  **Get Answer**: The chosen AI model analyzes the context and question, returning the answer in the required JSON format.
-6.  **Submit Answer**: The agent posts the answer to the submission URL specified on the quiz page.
-7.  **Recurse**: If the submission response contains a new quiz URL, the agent calls itself to begin the process again on the new task.
-
-## Setup and Installation
-
-### 1. Prerequisites
+### Prerequisites
 - Python 3.10+
-- Docker (for containerized deployment)
+- Groq API Key
+- Google Gemini API Key
 
-### 2. Installation
-Clone the repository and navigate into the project directory.
+### Local Setup
 
-```bash
-git clone <repository-url>
-cd LLMQuizer
-```
+1. **Clone & Install**
+   ```bash
+   git clone https://github.com/UNKNOWNAR/LLMQuizer.git
+   cd LLMQuizer
+   python -m venv venv
+   .\venv\Scripts\activate
+   pip install -r requirements.txt
+   playwright install chromium
+   ```
 
-Create and activate a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-```
+2. **Environment Variables**
+   Create a `.env` file:
+   ```ini
+   GROQ_API_KEY=gsk_...
+   GOOGLE_API_KEY=AIza...
+   MY_SECRET=my-secret-value
+   MY_EMAIL=test@example.com
+   PORT=8080
+   ```
 
-Install the required Python packages:
-```bash
-pip install -r requirements.txt
-```
+3. **Run Server**
+   ```bash
+   uvicorn main:app --reload --port 8080
+   ```
 
-### 3. Environment Variables
-This project requires API keys for the AI services it uses. Create a `.env` file in the root of the project and add the following variables:
+## 🧪 Testing
 
-```
-# .env file
+### Running the Mock Server
+The included mock server simulates the entire quiz chain (CSV, TXT, PDF, Image, etc.).
 
-# Your secret and email for the quiz platform
-MY_EMAIL="your-email@example.com"
-MY_SECRET="your_provided_secret"
+1. **Start Mock Server**
+   ```bash
+   python mock_server.py
+   ```
+   *Runs on port 8001*
 
-# API key for Groq (https://console.groq.com/keys)
-GROQ_API_KEY="gsk_..."
+2. **Expose via Ngrok** (Optional but recommended for full test)
+   ```bash
+   ngrok http 8001
+   ```
+   *Update `BASE_URL` in `mock_server.py` with your ngrok URL.*
 
-# API key for Google AI Studio (https://aistudio.google.com/app/apikey)
-GOOGLE_API_KEY="AIza..."
-```
-
-## How to Run
-
-### Local Development
-To run the application locally for development, use `uvicorn`:
-
-```bash
-uvicorn main:app --reload
-```
-
-The server will be available at `http://127.0.0.1:8000`.
-
-### Sending a Test Request
-You can start a quiz-solving chain by sending a POST request to the `/quiz` endpoint.
+### Running Tests
+Run the comprehensive test suite:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/quiz \
--H "Content-Type: application/json" \
--d '{
-    "email": "your-email@example.com",
-    "secret": "your_provided_secret",
-    "url": "https://initial-quiz-url.com"
-}'
+# Run full quiz chain test
+pytest tests/test_main.py::test_full_quiz_chain -v -s
+
+# Run specific test
+pytest tests/test_main.py::test_chart_generation -v
 ```
 
-## Testing
+## 📦 Deployment (Railway)
 
-This project includes a comprehensive end-to-end test suite that simulates the entire quiz-solving process. It uses `pytest` and a mock server (`mock_server.py`) that serves a chain of mock quizzes to the agent.
+The project is configured for seamless deployment on Railway.
 
-### 1. Install Testing Dependencies
-The testing requirements are included in `requirements.txt` but if you need to install them separately:
-```bash
-pip install pytest pytest-asyncio httpx python-dotenv
-```
+1. **Push to GitHub**
+   - The repo includes `Dockerfile` and `requirements.txt`.
+2. **Connect Railway**
+   - Create new project from GitHub repo.
+3. **Set Variables**
+   - Add `GROQ_API_KEY`, `GOOGLE_API_KEY`, `MY_SECRET`, `MY_EMAIL` in Railway dashboard.
+4. **Deploy**
+   - Railway will auto-build and deploy.
 
-### 2. Run the Test Suite
-To run all tests, including the full end-to-end quiz chain simulation, run the following command from the project root:
+## 🔄 Workflow
 
-```bash
-pytest tests/test_main.py -v
-```
+1. **Start**: Receive POST request with `start_url`.
+2. **Navigate**: Agent visits URL, handles ngrok warnings.
+3. **Analyze**: 
+   - Detects file links (CSV, PDF, Images).
+   - Extracts question context from HTML.
+4. **Solve**:
+   - **CSV/Text**: Processed by Groq.
+   - **Images/PDF**: Processed by Gemini Vision.
+   - **Charts**: Generated via Matplotlib + LLM parameters.
+5. **Submit**: POST answer to extracted `submit_url`.
+6. **Loop**: 
+   - If Correct → Go to next URL.
+   - If Wrong + Next URL → Go to next URL.
+   - If Wrong + No URL → **Retry with Feedback**.
 
-The test suite will:
-1.  **Mock Server**: Interact with a local mock server (running on port 8001) that simulates the quiz chain.
-2.  **Agent Verification**: Verify the agent's ability to navigate the chain, handle different file types (CSV, PDF, Image), and submit answers in various formats.
-3.  **Error Handling**: Test graceful failure for broken links (404) and confusing content (LLM failure).
-4.  **Railway Integration**: Can be configured to test against a live Railway deployment using Ngrok.
-
-For detailed testing instructions, see [tests/README.md](tests/README.md).
-
-### Docker Deployment
-The included `Dockerfile` is optimized for deployment on cloud platforms like Google Cloud Run.
-
-Build the Docker image:
-
-```bash
-docker build -t llm-quiz-agent .
-```
-
-Run the Docker container:
-
-```bash
-docker run -p 8080:8080 --env-file .env llm-quiz-agent
-```
-The application will be accessible at `http://localhost:8080`.
-
-### Railway Deployment
-This project is ready for deployment on Railway.
-
-1.  **Connect GitHub**: Connect your GitHub repository to Railway.
-2.  **Environment Variables**: Add the required environment variables (`GROQ_API_KEY`, `GOOGLE_API_KEY`, `MY_EMAIL`, `MY_SECRET`) in the Railway dashboard.
-3.  **Deploy**: Railway will automatically build and deploy the application using the `Dockerfile`.
-4.  **Public URL**: Railway will provide a public URL (e.g., `https://your-app.up.railway.app`) which serves as the entry point for the agent.
+## 📂 Project Structure
 
 ```
+LLMQuizer/
+├── main.py              # Core agent logic (FastAPI app)
+├── mock_server.py       # Simulation server for testing
+├── requirements.txt     # Dependencies
+├── Dockerfile           # Production container config
+├── tests/
+│   ├── test_main.py     # Comprehensive test suite
+│   └── README.md        # Testing documentation
+└── demo_files/          # Dummy files for mock server
+```
+
+## 🛡️ Retry Logic Explained
+
+The agent uses a two-tier retry strategy:
+
+1. **Priority 1 (Skip)**: If the server returns `correct: false` but provides a `next_url`, the agent prioritizes moving forward (assuming the quiz allows skipping).
+2. **Priority 2 (Retry)**: If `correct: false` and `url: null`, the agent queries the LLM with the error reason and original question to generate a *different* answer and retries once.
+
+---
+**Status**: Production Ready 🚀
+**Last Verified**: 29 Nov 2025

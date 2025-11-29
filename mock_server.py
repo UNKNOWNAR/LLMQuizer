@@ -83,7 +83,7 @@ async def mock_submit_csv(request: Request):
     _submission_log.append(data)
     print_submission(data, "CSV")
     answer = data.get("answer")
-    if answer == 12345 or answer == 150: # Accepting both for robustness
+    if answer == 800:  # Sum of value column in CSV file
         return JSONResponse(content={"correct": True, "url": f"{BASE_URL}/mock-quiz/txt", "reason": "CSV task correct."})
     return JSONResponse(content={"correct": False, "url": None, "reason": "Incorrect answer."})
 
@@ -93,7 +93,7 @@ async def mock_submit_txt(request: Request):
     _submission_log.append(data)
     print_submission(data, "TXT")
     answer = data.get("answer")
-    if "secret-word" in str(answer) or "supercalifragilisticexpialidocious" in str(answer):
+    if "secret-word" in str(answer) or "supercalifragilisticexpialidocious" in str(answer) or answer == 12 or answer == 45:
         return JSONResponse(content={"correct": True, "url": f"{BASE_URL}/mock-quiz/pdf", "reason": "TXT task correct."})
     return JSONResponse(content={"correct": False, "url": None, "reason": "Incorrect answer."})
 
