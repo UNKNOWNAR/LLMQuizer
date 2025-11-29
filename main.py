@@ -146,6 +146,8 @@ def extract_submit_url(html_content: str) -> Optional[str]:
         r'answer to.*?((?:https?://|/)[^\s<]+)',
         # Very loose fallback: just look for the URL in the instruction part if it contains "mock-submit"
         r'((?:https?://|/)[^\s<]*mock-submit[^\s<]*)',
+        # Pattern for: "POSTing JSON to URL" (Project 2 specific)
+        r'POSTing\s+JSON\s+to\s+((?:https?://|/)[^\s,]+)',
         # Pattern for: "Submit to: <code>URL</code>"
         r'Submit to:\s*<code>\s*(https?://[^\s<]+)\s*</code>'
     ]
@@ -284,7 +286,7 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
             else:
                 # If no files, assume it's a simple text question
                 logger.info("No specific file type found. Querying LLM for answer from page text.")
-                qa_data = await query_groq(client, f"Answer the question or provide the required information from the following text. Return a JSON object with a single key 'answer'. Text: {page_inner[-2000:]}")
+                qa_data = await query_groq(client, f"Answer the question or provide the required information from the following text. If this is a start page or instruction page with no specific question, return 'start'. Return a JSON object with a single key 'answer'. Text: {page_inner[-2000:]}")
                 answer = qa_data.get("answer") if qa_data else "start" # Default to "start" if LLM fails
 
             # Process answer to handle different formats (boolean, number, string, JSON)
