@@ -217,7 +217,9 @@ async def run_agent_chain(start_url: str, email: str, secret: str):
             logger.info(f"Step {step+1}: {current_url}")
 
             try:
-                resp = await client.get(current_url)
+                # Add ngrok bypass header only for ngrok URLs (testing)
+                headers = {"ngrok-skip-browser-warning": "true"} if "ngrok" in current_url else {}
+                resp = await client.get(current_url, headers=headers)
                 if resp.status_code >= 400:
                     logger.error(f"Failed to fetch {current_url}, status: {resp.status_code}")
                     break
